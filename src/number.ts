@@ -1,36 +1,32 @@
 import { string, StringValidator } from "./string";
-import { Assertable, Optional, TypeFromRequired, ValidationError } from "./types";
+import { Assertable, ValidationError } from "./types";
 
-type NumberValidator<REQUIRED extends boolean> = {
-  required: (_default?: number) => NumberValidator<true>;
-  min: (minValue: number) => NumberValidator<REQUIRED>;
-  max: (maxValue: number) => NumberValidator<REQUIRED>;
+type NumberValidator = {
+  min: (minValue: number) => NumberValidator;
+  max: (maxValue: number) => NumberValidator;
   integer: (
     options?: Partial<{
       roundIfNot: boolean;
       divisibleBy: number;
     }>
-  ) => NumberValidator<REQUIRED>;
+  ) => NumberValidator;
   custom: (
-    validator: (value: TypeFromRequired<number, REQUIRED>, error: (message: string) => void) => number
-  ) => NumberValidator<REQUIRED>;
-  asString: () => StringValidator<REQUIRED>;
-} & Assertable<TypeFromRequired<number, REQUIRED>>;
+    validator: (value: number, error: (message: string) => void) => number
+  ) => NumberValidator;
+  asString: () => StringValidator;
+} & Assertable<number>;
 
-export function number<INIT_REQUIRED extends boolean>(
+export function number(
   name: string = "Value",
   options?: Partial<{
     allowNumericString?: boolean;
-    initialAssert?: (value: unknown) => TypeFromRequired<number, INIT_REQUIRED>;
+    initialAssert?: (value: unknown) => number;
   }>
 ) {
   const { allowNumericString, initialAssert } = {
     allowNumericString: true,
     initialAssert: (value: unknown) => {
       if (typeof value !== "number") {
-        if (value === null || value === undefined) {
-          return value;
-        }
         if (typeof value === "string" && allowNumericString) {
           const parsed = Number(value);
           if (!Number.isNaN(parsed)) {
@@ -46,25 +42,14 @@ export function number<INIT_REQUIRED extends boolean>(
     ...options,
   };
 
-  function chain<REQUIRED extends boolean>(
-    oldAssert: (value: unknown) => Optional<number>,
-    fun: (value: Optional<number>) => TypeFromRequired<number, REQUIRED>
-  ): NumberValidator<REQUIRED> {
+  function chain(
+    oldAssert: (value: unknown) => number,
+    fun: (value: number) => number
+  ): NumberValidator {
     const assert = (value: unknown) => fun(oldAssert(value));
     return {
-      required: (_default?: number) =>
-        chain<true>(assert, (value) => {
-          if (value === undefined || value === null) {
-            if (_default) return _default;
-            throw new ValidationError(name, "is required");
-          }
-          return value;
-        }),
       min: (minValue: number) =>
         chain(assert, (value) => {
-          if (value === undefined || value === null) {
-            return value as TypeFromRequired<number, REQUIRED>;
-          }
           if (value < minValue) {
             throw new ValidationError(name, `must be greater than ${minValue}`);
           }
@@ -72,9 +57,6 @@ export function number<INIT_REQUIRED extends boolean>(
         }),
       max: (maxValue: number) =>
         chain(assert, (value) => {
-          if (value === undefined || value === null) {
-            return value as TypeFromRequired<number, REQUIRED>;
-          }
           if (value > maxValue) {
             throw new ValidationError(name, `must be less than ${maxValue}`);
           }
@@ -92,9 +74,6 @@ export function number<INIT_REQUIRED extends boolean>(
           ...options,
         };
         return chain(assert, (value) => {
-          if (value === undefined || value === null) {
-            return value as TypeFromRequired<number, REQUIRED>;
-          }
           if (!Number.isInteger(value) && !roundIfNot) {
             throw new ValidationError(name, "must be an integer");
           }
@@ -112,17 +91,14 @@ export function number<INIT_REQUIRED extends boolean>(
         validator
       ) =>
         chain(assert, (value) => {
-          return validator(value as TypeFromRequired<number, REQUIRED>, (message: string) => {
+          return validator(value, (message: string) => {
             throw new ValidationError(name, message);
           });
         }),
       asString: () =>
-        string<REQUIRED>(name, {
+        string(name, {
           initialAssert: (value: unknown) => {
             const num = assert(value);
-            if (num === undefined || num === null) {
-              return num as TypeFromRequired<string, false> as TypeFromRequired<string, REQUIRED>;
-            }
             return num.toString();
           },
         }),
@@ -130,5 +106,5 @@ export function number<INIT_REQUIRED extends boolean>(
     };
   }
 
-  return chain<INIT_REQUIRED>(initialAssert, (value) => value as TypeFromRequired<number, INIT_REQUIRED>);
+  return chain(initialAssert, (value) => value);
 }

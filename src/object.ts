@@ -1,21 +1,20 @@
-import { Assertable, Optional, TypeFromRequired, ValidationError } from './types';
+import { Assertable, ValidationError } from './types';
 
-type ValidatorsFromSchema<SCHEMA extends object> = {
-  [KEY in keyof SCHEMA]: (value: unknown) => SCHEMA[KEY];
+type ValidatorsFromSchema<SCHEMA extends Record<any, any>> = {
+  [KEY in keyof SCHEMA]: Assertable<SCHEMA[KEY]>;
 };
 
-export type ObjectValidator<SCHEMA extends object, REQUIRED extends boolean> = {
-  required: (_default?: SCHEMA) => ObjectValidator<SCHEMA, true>;
+export type ObjectValidator<SCHEMA extends Record<any, any>> = {
   schema: <NEW extends SCHEMA>(
     validators: ValidatorsFromSchema<NEW>,
     options?: { allOrNothing?: boolean; removeExtraneous?: boolean },
-  ) => ObjectValidator<NEW, REQUIRED>;
-} & Assertable<TypeFromRequired<SCHEMA, REQUIRED>>;
+  ) => ObjectValidator<NEW>;
+} & Assertable<SCHEMA>;
 
-export function object<INIT extends object, INIT_REQUIRED extends boolean>(
+export function object<INIT extends Record<any, any>>(
   name: string = 'Value',
   options?: Partial<{
-    initialAssert: (value: unknown) => TypeFromRequired<INIT, INIT_REQUIRED>;
+    initialAssert: (value: unknown) => INIT;
   }>,
 ) {
   const { initialAssert } = {
@@ -28,37 +27,27 @@ export function object<INIT extends object, INIT_REQUIRED extends boolean>(
     ...options,
   };
 
-  function chain<NEW extends INIT, REQUIRED extends boolean>(
-    oldAssert: (value: unknown) => Optional<INIT>,
-    fun: (value: Optional<INIT>) => TypeFromRequired<NEW, REQUIRED>,
-  ): ObjectValidator<NEW, REQUIRED> {
+  function chain<NEW extends INIT>(
+    oldAssert: (value: unknown) => INIT,
+    fun: (value: INIT) => NEW,
+  ): ObjectValidator<NEW> {
     const assert = (value: unknown) => fun(oldAssert(value));
     return {
-      required: (_default?: NEW) =>
-        chain<NEW, true>(assert, (value) => {
-          if (value === undefined || value === null) {
-            if (_default) return _default;
-            throw new ValidationError(name, 'is required');
-          }
-          return value as NEW;
-        }),
       schema: <SCHEMA extends INIT>(
         schema: ValidatorsFromSchema<SCHEMA>,
-        options?: { allOrNothing?: boolean; removeExtraneous?: boolean },
+        options?: { allOrNothing?: boolean; },
       ) => {
-        const { allOrNothing, removeExtraneous } = {
+        const { allOrNothing } = {
           allOrNothing: false,
           ...options,
         };
-        return chain<SCHEMA, REQUIRED>(assert, (value) => {
-          if (value === undefined || value === null) {
-            return value as TypeFromRequired<SCHEMA, REQUIRED>;
-          }
+        return chain<SCHEMA>(assert, (value) => {
           const result = {} as SCHEMA;
-          const keys = Object.keys(schema);
-          for (const key of keys) {
+          for (const key in schema) {
+            const propertyValue = key in value ? value[key as keyof typeof value] : undefined;
             try {
-              result[key as keyof typeof result] = schema[key as keyof typeof schema](value[key as keyof typeof value]);
+              const assertable = schema[key];
+              result[key] = assertable.assert(propertyValue);
             } catch (error) {
               if (allOrNothing) {
                 throw error;
@@ -72,5 +61,5 @@ export function object<INIT extends object, INIT_REQUIRED extends boolean>(
     };
   }
 
-  return chain<INIT, INIT_REQUIRED>(initialAssert, (value) => value as TypeFromRequired<INIT, INIT_REQUIRED>);
+  return chain<INIT>(initialAssert, (value) => value);
 }

@@ -1,20 +1,19 @@
-import { Assertable, Optional, TypeFromRequired, ValidationError } from "./types";
+import { Assertable, ValidationError } from "./types";
 
-export type ArrayValidator<EL, REQUIRED extends boolean> = {
-  required: (_default?: EL[]) => ArrayValidator<EL, true>;
-  minLength: (minLength: number) => ArrayValidator<EL, REQUIRED>;
-  maxLength: (maxLength: number) => ArrayValidator<EL, REQUIRED>;
+export type ArrayValidator<EL> = {
+  minLength: (minLength: number) => ArrayValidator<EL>;
+  maxLength: (maxLength: number) => ArrayValidator<EL>;
   of: <NEW extends EL>(
     validator: (value: unknown) => NEW,
     options?: { allOrNothing?: boolean }
-  ) => ArrayValidator<NEW, REQUIRED>;
-} & Assertable<TypeFromRequired<EL[], REQUIRED>>;
+  ) => ArrayValidator<NEW>;
+} & Assertable<EL[]>;
 
-export function array<INIT, INIT_REQUIRED extends boolean>(
+export function array<INIT>(
   name: string = "Value",
   options?: Partial<{
     coerce?: boolean;
-    initialAssert?: (value: unknown) => TypeFromRequired<INIT[], INIT_REQUIRED>;
+    initialAssert?: (value: unknown) => INIT[];
   }>
 ) {
   const { coerce, initialAssert } = {
@@ -22,9 +21,6 @@ export function array<INIT, INIT_REQUIRED extends boolean>(
     initialAssert: (value: unknown) => {
       if (!Array.isArray(value)) {
         if (coerce) {
-          if (value === null || value === undefined) {
-            return [];
-          }
           return [value];
         }
         throw new ValidationError(name, "must be an array");
@@ -34,25 +30,14 @@ export function array<INIT, INIT_REQUIRED extends boolean>(
     ...options,
   };
 
-  function chain<NEW extends INIT, REQUIRED extends boolean>(
-    oldAssert: (value: unknown) => Optional<INIT[]>,
-    fun: (value: Optional<INIT[]>) => TypeFromRequired<NEW[], REQUIRED>
-  ): ArrayValidator<NEW, REQUIRED> {
+  function chain<NEW extends INIT>(
+    oldAssert: (value: unknown) => INIT[],
+    fun: (value: INIT[]) => NEW[]
+  ): ArrayValidator<NEW> {
     const assert = (value: unknown) => fun(oldAssert(value));
     return {
-      required: (_default?: NEW[]) =>
-        chain<NEW, true>(assert, (value) => {
-          if (value === undefined || value === null) {
-            if (_default) return _default;
-            throw new ValidationError(name, "is required");
-          }
-          return value as NEW[];
-        }),
       minLength: (minLength) =>
-        chain<NEW, REQUIRED>(assert, (value) => {
-          if (value === undefined || value === null) {
-            return value as TypeFromRequired<NEW[], REQUIRED>;
-          }
+        chain<NEW>(assert, (value) => {
           if (value.length < minLength) {
             throw new ValidationError(
               name,
@@ -63,9 +48,6 @@ export function array<INIT, INIT_REQUIRED extends boolean>(
         }),
       maxLength: (maxLength) =>
         chain(assert, (value) => {
-          if (value === undefined || value === null) {
-            return value as TypeFromRequired<NEW[], REQUIRED>;
-          }
           if (value.length > maxLength) {
             throw new ValidationError(
               name,
@@ -82,10 +64,7 @@ export function array<INIT, INIT_REQUIRED extends boolean>(
           allOrNothing: false,
           ...options,
         };
-        return chain<EL, REQUIRED>(assert, (value) => {
-          if (value === undefined || value === null) {
-            return value as TypeFromRequired<EL[], REQUIRED>;
-          }
+        return chain<EL>(assert, (value) => {
           const res = [];
           for (let i = 0; i < value.length; i++) {
             try {
@@ -108,5 +87,5 @@ export function array<INIT, INIT_REQUIRED extends boolean>(
     };
   }
 
-  return chain<INIT, INIT_REQUIRED>(initialAssert, (value) => value as INIT[]);
+  return chain<INIT>(initialAssert, (value) => value);
 }

@@ -10,8 +10,3 @@ export type Assertable<TYPE> = {
 };
 
 export type Optional<T> = T | null | undefined;
-
-export type TypeFromRequired<
-  TYPE,
-  REQUIRED extends boolean
-> = REQUIRED extends true ? TYPE : TYPE | null | undefined;

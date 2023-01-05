@@ -1,20 +1,19 @@
-import { Assertable, Optional, TypeFromRequired, ValidationError } from "./types";
+import { Assertable, ValidationError } from "./types";
 
 type ValidatorsFromTuple<TUP extends [...unknown[]]> = {
-  [INDEX in keyof TUP]: (value: unknown) => TUP[INDEX];
-};
+  [INDEX in Exclude<keyof TUP, 'length'>]: (value: unknown) => TUP[INDEX];
+} & unknown[];
 
-export type TupleValidator<E extends [...unknown[]], REQUIRED extends boolean> = {
-  required: (_default?: E) => TupleValidator<E, true>;
-  of: <TUP extends [...unknown[]]>(
+export type TupleValidator<E extends [...unknown[]]> = {
+  of: <TUP extends E>(
     validators: ValidatorsFromTuple<TUP>
-  ) => TupleValidator<TUP, REQUIRED>;
-} & Assertable<TypeFromRequired<E, REQUIRED>>;
+  ) => TupleValidator<TUP>;
+} & Assertable<E>;
 
-export function tuple<INIT extends [...unknown[]], INIT_REQUIRED extends boolean>(
+export function tuple<INIT extends [...unknown[]]>(
   name: string = "Value",
   options?: Partial<{
-    initialAssert: (value: unknown) => TypeFromRequired<INIT, INIT_REQUIRED>;
+    initialAssert: (value: unknown) => INIT;
   }>
 ) {
   const { initialAssert } = {
@@ -22,37 +21,26 @@ export function tuple<INIT extends [...unknown[]], INIT_REQUIRED extends boolean
       if (!Array.isArray(value)) {
         throw new ValidationError(name, "must be an array");
       }
-      return value;
+      return value as INIT;
     },
     ...options,
   };
 
-  function chain<NEW extends [...unknown[]], REQUIRED extends boolean>(
-    oldAssert: (value: unknown) => Optional<[...unknown[]]>,
-    fun: (value: Optional<unknown[]>) => TypeFromRequired<NEW, REQUIRED>
-  ): TupleValidator<NEW, REQUIRED> {
+  function chain<NEW extends INIT>(
+    oldAssert: (value: unknown) => INIT,
+    fun: (value: INIT) => NEW
+  ): TupleValidator<NEW> {
     const assert = (value: unknown) => fun(oldAssert(value));
     return {
-      required: (_default?: NEW) =>
-        chain<NEW, true>(assert, (value) => {
-          if (value === undefined || value === null) {
-            if (_default) return _default;
-            throw new ValidationError(name, "is required");
-          }
-          return value as NEW;
-        }),
-      of: <TUP extends [...unknown[]]>(
+      of: <TUP extends INIT>(
         validators: ValidatorsFromTuple<TUP>,
         options?: { throwIfExtra?: boolean }
-      ): TupleValidator<TUP, REQUIRED> => {
+      ): TupleValidator<TUP> => {
         const { throwIfExtra } = {
           throwIfExtra: false,
           ...options,
         };
-        return chain<TUP, REQUIRED>(assert, (value) => {
-          if (value === undefined || value === null) {
-            return value as TypeFromRequired<TUP, REQUIRED>;
-          }
+        return chain<TUP>(assert, (value) => {
           if (validators.length > value.length) {
             throw new ValidationError(
               name,
@@ -85,5 +73,5 @@ export function tuple<INIT extends [...unknown[]], INIT_REQUIRED extends boolean
     };
   }
 
-  return chain<INIT, INIT_REQUIRED>(initialAssert, (value) => value as INIT);
+  return chain<INIT>(initialAssert, (value) => value);
 }
