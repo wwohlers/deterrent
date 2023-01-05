@@ -1,5 +1,5 @@
 {
-  "name": "calm",
+  "name": "calm-js",
   "version": "1.0.0",
   "description": "Modern, functional data validation library",
   "main": "lib/index.js",

@@ -1,91 +1,89 @@
-import { Assertable, ValidationError } from "./types";
+import { Assertable } from './types';
+import { ValidationError } from './ValidationError';
 
 export type ArrayValidator<EL> = {
   minLength: (minLength: number) => ArrayValidator<EL>;
-  maxLength: (maxLength: number) => ArrayValidator<EL>;
-  of: <NEW extends EL>(
-    validator: (value: unknown) => NEW,
-    options?: { allOrNothing?: boolean }
-  ) => ArrayValidator<NEW>;
+  maxLength: (maxLength: number, options?: { truncate?: boolean }) => ArrayValidator<EL>;
+  of: <NEXT extends EL>(assertable: Assertable<NEXT>, options?: { allOrNothing?: boolean }) => ArrayValidator<NEXT>;
+  custom: <NEXT extends EL>(
+    validator: (value: EL[], error: (message: string) => void) => NEXT[],
+  ) => ArrayValidator<NEXT>;
 } & Assertable<EL[]>;
 
 export function array<INIT>(
-  name: string = "Value",
-  options?: Partial<{
+  options?: {
+    name?: string;
     coerce?: boolean;
     initialAssert?: (value: unknown) => INIT[];
-  }>
+  },
 ) {
-  const { coerce, initialAssert } = {
+  const { name, coerce, initialAssert } = {
+    name: 'Value',
     coerce: false,
     initialAssert: (value: unknown) => {
       if (!Array.isArray(value)) {
         if (coerce) {
+          if (value === undefined || value === null) {
+            return [];
+          }
           return [value];
         }
-        throw new ValidationError(name, "must be an array");
+        throw new ValidationError(name, 'must be an array');
       }
       return value;
     },
     ...options,
   };
 
-  function chain<NEW extends INIT>(
-    oldAssert: (value: unknown) => INIT[],
-    fun: (value: INIT[]) => NEW[]
-  ): ArrayValidator<NEW> {
-    const assert = (value: unknown) => fun(oldAssert(value));
+  function chain<EL extends INIT>(assert: (value: unknown) => EL[]): ArrayValidator<EL> {
+    const next = <NEXT extends INIT>(nextFunction: (value: EL[]) => NEXT[]) =>
+      chain<NEXT>((value: unknown) => nextFunction(assert(value)));
     return {
-      minLength: (minLength) =>
-        chain<NEW>(assert, (value) => {
+      minLength: (minLength: number) =>
+        next((value) => {
           if (value.length < minLength) {
-            throw new ValidationError(
-              name,
-              `must contain at least ${minLength} items`
-            );
+            throw new ValidationError(name, `must contain at least ${minLength} items`);
           }
-          return value as NEW[];
+          return value;
         }),
-      maxLength: (maxLength) =>
-        chain(assert, (value) => {
+      maxLength: (maxLength: number, options?: { truncate?: boolean }) =>
+        next((value) => {
           if (value.length > maxLength) {
-            throw new ValidationError(
-              name,
-              `must contain at most ${maxLength} items`
-            );
+            if (options?.truncate) {
+              return value.slice(0, maxLength) as EL[];
+            }
+            throw new ValidationError(name, `must contain at most ${maxLength} items`);
           }
-          return value as NEW[];
+          return value;
         }),
-      of: <EL extends INIT>(
-        validator: (value: unknown) => EL,
-        options?: { allOrNothing?: boolean }
-      ) => {
+      of: <NEXT extends EL>(assertable: Assertable<NEXT>, options?: { allOrNothing?: boolean }) => {
         const { allOrNothing } = {
-          allOrNothing: false,
+          allOrNothing: true,
           ...options,
         };
-        return chain<EL>(assert, (value) => {
+        return next<NEXT>((value) => {
           const res = [];
           for (let i = 0; i < value.length; i++) {
             try {
-              res.push(validator(value[i]));
+              res.push(assertable.assert(value[i]));
             } catch (e) {
               if (allOrNothing) {
-                throw new ValidationError(
-                  name,
-                  `item at index ${i} is invalid: ${
-                    (e as ValidationError).message
-                  }`
-                );
+                throw new ValidationError(name, `item at index ${i} is invalid: ${(e as ValidationError).message}`);
               }
             }
           }
-          return res as EL[];
+          return res as NEXT[];
         });
       },
+      custom: <NEXT extends EL>(validator: (value: EL[], error: (message: string) => void) => NEXT[]) =>
+        next<NEXT>((value) => {
+          return validator(value, (message: string) => {
+            throw new ValidationError(name, message);
+          });
+        }),
       assert,
     };
   }
 
-  return chain<INIT>(initialAssert, (value) => value);
+  return chain<INIT>(initialAssert);
 }

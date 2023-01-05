@@ -1,4 +1,5 @@
-import { Assertable, ValidationError } from './types';
+import { Assertable } from './types';
+import { ValidationError } from './ValidationError';
 
 export type BooleanValidator = {
   true: () => BooleanValidator;
@@ -6,13 +7,14 @@ export type BooleanValidator = {
 } & Assertable<boolean>;
 
 export function boolean(
-  name: string = 'Value',
-  options?: Partial<{
+  options?: {
+    name?: string;
     coerce?: boolean;
-    initialAssert: (value: unknown) => boolean;
-  }>,
+    initialAssert?: (value: unknown) => boolean;
+  },
 ) {
-  const { coerce, initialAssert } = {
+  const { name, coerce, initialAssert } = {
+    name: 'Value',
     coerce: false,
     initialAssert: (value: unknown) => {
       if (typeof value !== 'boolean') {
@@ -26,18 +28,18 @@ export function boolean(
     ...options,
   };
 
-  function chain(oldAssert: (value: unknown) => boolean, fun: (value: boolean) => boolean): BooleanValidator {
-    const assert = (value: unknown) => fun(oldAssert(value));
+  function chain(assert: (value: unknown) => boolean): BooleanValidator {
+    const next = (nextFunction: (value: boolean) => boolean) => chain((value) => nextFunction(assert(value)));
     return {
       true: () =>
-        chain(assert, (value) => {
+        next((value) => {
           if (!value) {
             throw new ValidationError(name, 'must be true');
           }
           return value;
         }),
       false: () =>
-        chain(assert, (value) => {
+        next((value) => {
           if (value) {
             throw new ValidationError(name, 'must be false');
           }
@@ -47,5 +49,5 @@ export function boolean(
     };
   }
 
-  return chain(initialAssert, (value) => value);
+  return chain(initialAssert);
 }

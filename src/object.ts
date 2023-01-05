@@ -1,23 +1,22 @@
-import { Assertable, ValidationError } from './types';
+import { Assertable } from './types';
+import { ValidationError } from './ValidationError';
 
 type ValidatorsFromSchema<SCHEMA extends Record<any, any>> = {
   [KEY in keyof SCHEMA]: Assertable<SCHEMA[KEY]>;
 };
 
 export type ObjectValidator<SCHEMA extends Record<any, any>> = {
-  schema: <NEW extends SCHEMA>(
-    validators: ValidatorsFromSchema<NEW>,
-    options?: { allOrNothing?: boolean; removeExtraneous?: boolean },
-  ) => ObjectValidator<NEW>;
+  schema: <NEXT extends SCHEMA>(validators: ValidatorsFromSchema<NEXT>) => ObjectValidator<NEXT>;
 } & Assertable<SCHEMA>;
 
 export function object<INIT extends Record<any, any>>(
-  name: string = 'Value',
-  options?: Partial<{
-    initialAssert: (value: unknown) => INIT;
-  }>,
+  options?: {
+    name?: string;
+    initialAssert?: (value: unknown) => INIT;
+  },
 ) {
-  const { initialAssert } = {
+  const { name, initialAssert } = {
+    name: 'Value',
     initialAssert: (value: unknown) => {
       if (typeof value !== 'object' || value === null || Array.isArray(value)) {
         throw new ValidationError(name, 'must be an object');
@@ -27,31 +26,21 @@ export function object<INIT extends Record<any, any>>(
     ...options,
   };
 
-  function chain<NEW extends INIT>(
-    oldAssert: (value: unknown) => INIT,
-    fun: (value: INIT) => NEW,
-  ): ObjectValidator<NEW> {
-    const assert = (value: unknown) => fun(oldAssert(value));
+  function chain<SCHEMA extends INIT>(assert: (value: unknown) => SCHEMA): ObjectValidator<SCHEMA> {
+    const next = <NEXT extends SCHEMA>(nextFunction: (value: SCHEMA) => NEXT) =>
+      chain((value) => nextFunction(assert(value)));
     return {
-      schema: <SCHEMA extends INIT>(
-        schema: ValidatorsFromSchema<SCHEMA>,
-        options?: { allOrNothing?: boolean; },
-      ) => {
-        const { allOrNothing } = {
-          allOrNothing: false,
-          ...options,
-        };
-        return chain<SCHEMA>(assert, (value) => {
+      schema: <NEXT extends SCHEMA>(assertableSchema: ValidatorsFromSchema<NEXT>) => {
+        return next<NEXT>((value) => {
           const result = {} as SCHEMA;
-          for (const key in schema) {
+          for (const key in assertableSchema) {
             const propertyValue = key in value ? value[key as keyof typeof value] : undefined;
             try {
-              const assertable = schema[key];
+              const assertable = assertableSchema[key];
               result[key] = assertable.assert(propertyValue);
             } catch (error) {
-              if (allOrNothing) {
-                throw error;
-              }
+              const message = error instanceof ValidationError ? error.message : error;
+              throw new ValidationError(name, `at key '${key}' is invalid: ${message}`);
             }
           }
           return result;
@@ -61,5 +50,5 @@ export function object<INIT extends Record<any, any>>(
     };
   }
 
-  return chain<INIT>(initialAssert, (value) => value);
+  return chain<INIT>(initialAssert);
 }

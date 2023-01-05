@@ -1,11 +1,14 @@
-import { Assertable, ValidationError } from "./types";
+import { Assertable } from "./types";
+import { ValidationError } from "./ValidationError";
 
-export function oneOf<TYPE>(
-  assertables: Assertable<TYPE>[],
+type ExtractType<AS extends Assertable<any>[]> = AS extends Assertable<infer TYPE>[] ? TYPE : never;
+
+export function oneOf<AS extends Assertable<any>[]>(
+  assertables: AS,
   options?: {
     name?: string
   }
-): Assertable<TYPE> {
+): Assertable<ExtractType<AS>> {
   const { name } = {
     name: "Value",
     ...options,

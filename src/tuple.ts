@@ -1,77 +1,69 @@
-import { Assertable, ValidationError } from "./types";
+import { Assertable } from './types';
+import { ValidationError } from './ValidationError';
 
-type ValidatorsFromTuple<TUP extends [...unknown[]]> = {
-  [INDEX in Exclude<keyof TUP, 'length'>]: (value: unknown) => TUP[INDEX];
-} & unknown[];
+type ValidatorsFromTuple<TUP extends any[]> = [
+  ...{
+    [INDEX in keyof TUP]: Assertable<TUP[INDEX]>;
+  },
+];
 
-export type TupleValidator<E extends [...unknown[]]> = {
-  of: <TUP extends E>(
-    validators: ValidatorsFromTuple<TUP>
-  ) => TupleValidator<TUP>;
-} & Assertable<E>;
+export type TupleValidator<TUP extends any[]> = {
+  of: <NEXT extends TUP>(
+    assertables: ValidatorsFromTuple<NEXT>,
+    options?: { throwIfExtra?: boolean },
+  ) => TupleValidator<NEXT>;
+} & Assertable<TUP>;
 
-export function tuple<INIT extends [...unknown[]]>(
-  name: string = "Value",
-  options?: Partial<{
-    initialAssert: (value: unknown) => INIT;
-  }>
+export function tuple<INIT extends any[]>(
+  options?: {
+    name?: string;
+    initialAssert?: (value: unknown) => INIT;
+  },
 ) {
-  const { initialAssert } = {
+  const { name, initialAssert } = {
+    name: 'Value',
     initialAssert: (value: unknown) => {
       if (!Array.isArray(value)) {
-        throw new ValidationError(name, "must be an array");
+        throw new ValidationError(name, 'must be an array');
       }
       return value as INIT;
     },
     ...options,
   };
 
-  function chain<NEW extends INIT>(
-    oldAssert: (value: unknown) => INIT,
-    fun: (value: INIT) => NEW
-  ): TupleValidator<NEW> {
-    const assert = (value: unknown) => fun(oldAssert(value));
+  function chain<TUP extends INIT>(assert: (value: unknown) => TUP): TupleValidator<TUP> {
+    const next = <NEXT extends INIT>(nextFunction: (value: INIT) => NEXT) =>
+      chain<NEXT>((value: unknown) => nextFunction(assert(value)));
     return {
-      of: <TUP extends INIT>(
-        validators: ValidatorsFromTuple<TUP>,
-        options?: { throwIfExtra?: boolean }
-      ): TupleValidator<TUP> => {
+      of: <NEXT extends TUP>(
+        assertables: ValidatorsFromTuple<NEXT>,
+        options?: { throwIfExtra?: boolean },
+      ): TupleValidator<NEXT> => {
         const { throwIfExtra } = {
-          throwIfExtra: false,
+          throwIfExtra: true,
           ...options,
         };
-        return chain<TUP>(assert, (value) => {
-          if (validators.length > value.length) {
-            throw new ValidationError(
-              name,
-              `must contain at least ${validators.length} items`
-            );
+        return next<NEXT>((value) => {
+          if (assertables.length > value.length) {
+            throw new ValidationError(name, `must contain exactly ${assertables.length} items`);
           }
-          if (value.length > validators.length && throwIfExtra) {
-            throw new ValidationError(
-              name,
-              `must contain at most ${validators.length} items`
-            );
+          if (value.length > assertables.length && throwIfExtra) {
+            throw new ValidationError(name, `must contain exactly ${assertables.length} items`);
           }
           const res = [];
-          for (let i = 0; i < validators.length; i++) {
+          for (let i = 0; i < assertables.length; i++) {
             try {
-              res.push(validators[i](value[i]));
+              res.push(assertables[i].assert(value[i]));
             } catch (e) {
-              throw new ValidationError(
-                name,
-                `item at tuple index ${i} is invalid: ${
-                  (e as ValidationError).message
-                }`
-              );
+              throw new ValidationError(name, `item at tuple index ${i} is invalid: ${(e as ValidationError).message}`);
             }
           }
-          return res as TUP;
+          return res as NEXT;
         });
       },
       assert,
     };
   }
 
-  return chain<INIT>(initialAssert, (value) => value);
+  return chain<INIT>(initialAssert);
 }
