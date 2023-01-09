@@ -7,12 +7,12 @@ import { optional } from '../src/optional';
 test('constructor', () => {
   expect(object().assert({ a: 1, b: 2 })).toEqual({ a: 1, b: 2 });
   expect(object().assert({})).toEqual({});
-  expect(() => object().assert(5)).toThrowError(new ValidationError('Value', 'must be an object'));
-  expect(() => object().assert(null)).toThrowError(new ValidationError('Value', 'must be an object'));
-  expect(() => object().assert(undefined)).toThrowError(new ValidationError('Value', 'must be an object'));
-  expect(() => object().assert([])).toThrowError(new ValidationError('Value', 'must be an object'));
-  expect(() => object().assert(() => {})).toThrowError(new ValidationError('Value', 'must be an object'));
-  expect(() => object().assert(Symbol())).toThrowError(new ValidationError('Value', 'must be an object'));
+  expect(() => object().assert(5)).toThrowError(new ValidationError('Value must be an object'));
+  expect(() => object().assert(null)).toThrowError(new ValidationError('Value must be an object'));
+  expect(() => object().assert(undefined)).toThrowError(new ValidationError('Value must be an object'));
+  expect(() => object().assert([])).toThrowError(new ValidationError('Value must be an object'));
+  expect(() => object().assert(() => {})).toThrowError(new ValidationError('Value must be an object'));
+  expect(() => object().assert(Symbol())).toThrowError(new ValidationError('Value must be an object'));
 });
 
 test('schema', () => {
@@ -61,5 +61,5 @@ test('schema', () => {
         age: number(),
       })
       .assert({ name: 'John' }),
-  ).toThrow(new ValidationError('Value', "at key 'age' is invalid: Value must be a number"));
+  ).toThrow(new ValidationError('Value must be a number'));
 });

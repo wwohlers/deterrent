@@ -1,5 +1,5 @@
 {
-  "name": "calm-js",
+  "name": "deterrent",
   "version": "1.0.0",
   "description": "Modern, functional data validation library",
   "main": "lib/index.js",

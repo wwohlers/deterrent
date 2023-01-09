@@ -10,25 +10,20 @@ type ValidatorsFromTuple<TUP extends any[]> = [
 export type TupleValidator<TUP extends any[]> = {
   of: <NEXT extends TUP>(
     assertables: ValidatorsFromTuple<NEXT>,
-    options?: { throwIfExtra?: boolean },
+    options?: { errorMessage?: string; throwIfExtra?: boolean },
   ) => TupleValidator<NEXT>;
 } & Assertable<TUP>;
 
-export function tuple<INIT extends any[]>(
-  options?: {
-    name?: string;
-    initialAssert?: (value: unknown) => INIT;
-  },
-) {
+export function tuple<INIT extends any[]>(initOptions?: { name?: string; initialAssert?: (value: unknown) => INIT }) {
   const { name, initialAssert } = {
     name: 'Value',
     initialAssert: (value: unknown) => {
       if (!Array.isArray(value)) {
-        throw new ValidationError(name, 'must be an array');
+        throw new ValidationError(`${name} must be an array`);
       }
       return value as INIT;
     },
-    ...options,
+    ...initOptions,
   };
 
   function chain<TUP extends INIT>(assert: (value: unknown) => TUP): TupleValidator<TUP> {
@@ -37,7 +32,7 @@ export function tuple<INIT extends any[]>(
     return {
       of: <NEXT extends TUP>(
         assertables: ValidatorsFromTuple<NEXT>,
-        options?: { throwIfExtra?: boolean },
+        options?: { errorMessage?: string; throwIfExtra?: boolean },
       ): TupleValidator<NEXT> => {
         const { throwIfExtra } = {
           throwIfExtra: true,
@@ -45,17 +40,19 @@ export function tuple<INIT extends any[]>(
         };
         return next<NEXT>((value) => {
           if (assertables.length > value.length) {
-            throw new ValidationError(name, `must contain exactly ${assertables.length} items`);
+            throw new ValidationError(options?.errorMessage ?? `${name} must contain exactly ${assertables.length} items`);
           }
           if (value.length > assertables.length && throwIfExtra) {
-            throw new ValidationError(name, `must contain exactly ${assertables.length} items`);
+            throw new ValidationError(options?.errorMessage ?? `${name} must contain exactly ${assertables.length} items`);
           }
           const res = [];
           for (let i = 0; i < assertables.length; i++) {
             try {
               res.push(assertables[i].assert(value[i]));
             } catch (e) {
-              throw new ValidationError(name, `item at tuple index ${i} is invalid: ${(e as ValidationError).message}`);
+              throw new ValidationError(
+                options?.errorMessage ?? `${name} item at tuple index ${i} is invalid: ${(e as ValidationError).message}`,
+              );
             }
           }
           return res as NEXT;

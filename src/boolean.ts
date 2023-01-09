@@ -1,18 +1,12 @@
 import { Assertable } from './types';
 import { ValidationError } from './ValidationError';
 
-export type BooleanValidator = {
-  true: () => BooleanValidator;
-  false: () => BooleanValidator;
-} & Assertable<boolean>;
+export type BooleanValidator<T extends boolean> = {
+  true: (options?: { errorMessage?: string }) => BooleanValidator<true extends T ? true : never>;
+  false: (options?: { errorMessage?: string }) => BooleanValidator<false extends T ? false : never>;
+} & Assertable<T>;
 
-export function boolean(
-  options?: {
-    name?: string;
-    coerce?: boolean;
-    initialAssert?: (value: unknown) => boolean;
-  },
-) {
+export function boolean(initOptions?: { name?: string; coerce?: boolean; initialAssert?: (value: unknown) => boolean }) {
   const { name, coerce, initialAssert } = {
     name: 'Value',
     coerce: false,
@@ -21,33 +15,34 @@ export function boolean(
         if (coerce) {
           return Boolean(value);
         }
-        throw new ValidationError(name, 'must be a boolean');
+        throw new ValidationError(`${name} must be a boolean`);
       }
       return value;
     },
-    ...options,
+    ...initOptions,
   };
 
-  function chain(assert: (value: unknown) => boolean): BooleanValidator {
-    const next = (nextFunction: (value: boolean) => boolean) => chain((value) => nextFunction(assert(value)));
+  function chain<T extends boolean>(assert: (value: unknown) => T): BooleanValidator<T> {
+    const next = <NEXT extends boolean>(nextFunction: (value: T) => NEXT) =>
+      chain<NEXT>((value) => nextFunction(assert(value)));
     return {
-      true: () =>
-        next((value) => {
+      true: (options) =>
+        next<true extends T ? true : never>((value) => {
           if (!value) {
-            throw new ValidationError(name, 'must be true');
+            throw new ValidationError(options?.errorMessage ?? `${name} must be true`);
           }
-          return value;
+          return value as true extends T ? true : never;
         }),
-      false: () =>
-        next((value) => {
+      false: (options) =>
+        next<false extends T ? false : never>((value) => {
           if (value) {
-            throw new ValidationError(name, 'must be false');
+            throw new ValidationError(options?.errorMessage ?? `${name} must be false`);
           }
-          return value;
+          return value as false extends T ? false : never;
         }),
       assert,
     };
   }
 
-  return chain(initialAssert);
+  return chain<boolean>(initialAssert);
 }

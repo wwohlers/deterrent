@@ -1,10 +1,10 @@
-# CalmJS
+# Deterrent
 
-CalmJS is a type-safe, functional data validation library with no dependencies.
+Deterrent is a type-safe, functional data validation library with no dependencies.
 
 ## Assertable
 
-The essential type exposed by CalmJS is an assertable. 
+The essential type exposed by Deterrent is an assertable. 
 
 An `Assertable<T>` is an object whose member `assert` is a function that accepts a parameter of type `unknown` and returns a value of type `T` or throws a `ValidationError`.
 
@@ -32,11 +32,15 @@ Creates a `NumberValidator`.
 
 `options.initialAssert` -- see the **Initial Assert** section at the end.
 
-### NumberValidator.min(minValue: number)
+### NumberValidator.min(minValue: number, options)
 Checks that the number is at least `minValue`.
 
-### NumberValidator.max(maxValue: number)
+`options.errorMessage: string` -- error message if this validation check fails. Defaults to a specific message intended to be read by an end user.
+
+### NumberValidator.max(maxValue: number, options)
 Checks that the number is at most `maxValue`.
+
+`options.errorMessage: string` -- error message if this validation check fails. Defaults to a specific message intended to be read by an end user.
 
 ### NumberValidator.integer(options)
 Checks that the number is an integer.
@@ -44,6 +48,8 @@ Checks that the number is an integer.
 `options.roundIfNot: boolean` -- if the value is not an integer, rounds to the nearest integer and continues instead of throwing an error. Defaults to true.
 
 `options.divisibleBy: number` -- requires that the value (after being rounded, if applicable) is divisible by the given number.
+
+`options.errorMessage: string` -- error message if this validation check fails. Defaults to a specific message intended to be read by an end user.
 
 ### NumberValidator.custom(validator)
 See the **Custom Validator Function** section below.
@@ -64,14 +70,22 @@ Creates a `StringValidator`.
 
 `options.initialAssert` -- see the **Initial Assert** section at the end.
 
-### StringValidator.minLength(minLength)
+### StringValidator.minLength(minLength, options)
 Checks that the string's length is at least `minLength` characters.
 
-### StringValidator.maxLength(maxLength)
+`options.errorMessage: string` -- error message if this validation check fails. Defaults to a specific message intended to be read by an end user.
+
+### StringValidator.maxLength(maxLength, options)
 Checks that the string's length is at most `maxLength` characters.
 
-### StringValidator.pattern(pattern: RegExp)
+`options.truncate: boolean` -- if true, removes excess characters. If false, and the string is longer than `maxLength` characters, an error is thrown. Defaults to `false`.
+
+`options.errorMessage: string` -- error message if this validation check fails. Defaults to a specific message intended to be read by an end user.
+
+### StringValidator.pattern(pattern: RegExp, options)
 Checks that the string satisfies the given pattern.
+
+`options.errorMessage: string` -- error message if this validation check fails. Defaults to a specific message intended to be read by an end user.
 
 ### StringValidator.custom(validator)
 See the **Custom Validator Function** section below.
@@ -80,6 +94,8 @@ See the **Custom Validator Function** section below.
 Splits the string by the given separator and returns an `ArrayValidator<string>`.
 
 `options.listName: string` -- the name for the new array validator. 
+
+`options.errorMessage: string` -- error message if this validation check fails. Defaults to a specific message intended to be read by an end user.
 
 ### StringValidator.assert(value)
 Calls the validation chain; returns the value if it passes all checks, or throws a `ValidationError` if it fails.
@@ -96,11 +112,15 @@ Creates a `BooleanValidator`.
 
 `options.initialAssert` -- see the **Initial Assert** section at the end.
 
-### BooleanValidator.true()
+### BooleanValidator.true(options)
 Checks that the boolean is `true`.
 
-### BooleanValidator.false()
+`options.errorMessage: string` -- error message if this validation check fails. Defaults to a specific message intended to be read by an end user.
+
+### BooleanValidator.false(options)
 Checks that the boolean is `false`.
+
+`options.errorMessage: string` -- error message if this validation check fails. Defaults to a specific message intended to be read by an end user.
 
 ### BooleanValidator.assert(value)
 Calls the validation chain; returns the value if it passes all checks, or throws a `ValidationError` if it fails.
@@ -120,16 +140,24 @@ Creates an `ArrayValidator<INIT>`. `INIT` will default to `unknown[]` unless `op
 
 `options.initialAssert` -- see the **Initial Assert** section at the end.
 
-### array.minLength(minLength)
+### array.minLength(minLength, options)
 Checks that the array has at least `minLength` elements.
 
-### array.maxLength(maxLength)
+`options.errorMessage: string` -- error message if this validation check fails. Defaults to a specific message intended to be read by an end user.
+
+### array.maxLength(maxLength, options)
 Checks that the array has at most `maxLength` elements.
+
+`options.errorMessage: string` -- error message if this validation check fails. Defaults to a specific message intended to be read by an end user.
+
+`options.truncate: boolean` -- if true, removes excess elements and continues. If false, and the array contains more than `maxLength` elements, an error is thrown. Defaults to `false`.
 
 ### of\<NEXT>(assertable: Assertable\<NEXT>, options)
 Checks that the elements of the array pass the given assertable.
 
 `options.allOrNothing: boolean` -- if true, an element that fails to pass the assertable will cause the entire check to fail. If false, the element will simply be omitted from the array. Either way, the resulting array will only contain elements that passed the given assertable. Defaults to `true`.
+
+`options.errorMessage: string` -- error message if this validation check fails. Defaults to a specific message intended to be read by an end user.
 
 ### custom(validator)
 See the **Custom Validator Function** section below.
@@ -144,8 +172,10 @@ A validator for tuple types, i.e., arrays with a fixed size that satisfy the typ
 
 `options.initialAssert` -- see the **Initial Assert** section at the end.
 
-### tuple\<INIT>(options)
+### tuple\<INIT>(message?: string, options)
 Creates a `TupleValidator\<INIT>`. `INIT` will default to `any[]` unless `options.initialAssert` is specified. In either case, it should be inferred, so you'll rarely need to specify this type parameter.
+
+`options.errorMessage: string` -- error message if this validation check fails. Defaults to a specific message intended to be read by an end user.
 
 ### TupleValidator.of\<NEXT>(assertables, options)
 Checks that the elements of the tuple exactly match the given assertables. If there are fewer elements than assertables, an error is thrown. 
@@ -153,6 +183,8 @@ Checks that the elements of the tuple exactly match the given assertables. If th
 `assertables` is an array of assertables, where each element in `value` is checked against the assertable in its corresponding index.
 
 `options.throwIfExtra: boolean` -- if true, throws if there are more elements than assertables. If false, the extra elements are simply omitted from the resulting array. Defaults to `true`.
+
+`options.errorMessage: string` -- error message if this validation check fails. Defaults to a specific message intended to be read by an end user.
 
 ### TupleValidator.assert(value)
 Calls the validation chain; returns the value if it passes all checks, or throws a `ValidationError` if it fails.
@@ -202,10 +234,14 @@ Wraps the given assertable, allowing `null` or `undefined` values. Do not specif
 
 `options.allowUndefined?: boolean` -- whether to allow `undefined` values to pass. If false and no default value is provided, a value of `undefined` will cause the check to fail. Defaults to `true`.
 
+`options.errorMessage: string` -- error message if this validation check fails. Defaults to a specific message intended to be read by an end user.
+
 ## oneOf(assertables, options)
 Wraps the given assertables, allowing values that satisfy any of the given assertables. Do not specify the type parameter as it will be inferred.
 
 `options.name: string` -- the name of the oneOf assertable, used in error messages. Defaults to `"Value"`.
+
+`options.errorMessage: string` -- error message if this validation check fails. Defaults to a specific message intended to be read by an end user.
 
 ## Initial Assert
 All functions that create validators (`number()`, `string()`, etc) must provide an *initial assert* function. This function should accept a parameter of type `unknown` and return a type that extends its respective type. For example, an initial assert function for `number()` will typically return a `number`, but may return the type `1 | 2 | 3 | 4 | 5`.

@@ -3,10 +3,11 @@ import { Assertable } from './types';
 import { ValidationError } from './ValidationError';
 
 type NumberValidator = {
-  min: (minValue: number) => NumberValidator;
-  max: (maxValue: number) => NumberValidator;
+  min: (minValue: number, options?: { errorMessage?: string }) => NumberValidator;
+  max: (maxValue: number, options?: { errorMessage?: string }) => NumberValidator;
   integer: (
     options?: Partial<{
+      errorMessage?: string;
       roundIfNot: boolean;
       divisibleBy: number;
     }>,
@@ -15,13 +16,11 @@ type NumberValidator = {
   asString: () => StringValidator;
 } & Assertable<number>;
 
-export function number(
-  options?: {
-    name?: string;
-    allowNumericString?: boolean;
-    initialAssert?: (value: unknown) => number;
-  },
-) {
+export function number(initOptions?: {
+  name?: string;
+  allowNumericString?: boolean;
+  initialAssert?: (value: unknown) => number;
+}) {
   const { name, allowNumericString, initialAssert } = {
     name: 'Value',
     allowNumericString: true,
@@ -32,51 +31,46 @@ export function number(
           if (!Number.isNaN(parsed)) {
             return parsed;
           } else {
-            throw new ValidationError(name, 'must be numeric');
+            throw new ValidationError(`${name} must be numeric`);
           }
         }
-        throw new ValidationError(name, 'must be a number');
+        throw new ValidationError(`${name} must be a number`);
       }
       return value;
     },
-    ...options,
+    ...initOptions,
   };
 
   function chain(assert: (value: unknown) => number): NumberValidator {
     const next = (nextFunction: (value: number) => number) => chain((value) => nextFunction(assert(value)));
     return {
-      min: (minValue: number) =>
+      min: (minValue, options) =>
         next((value) => {
           if (value < minValue) {
-            throw new ValidationError(name, `must be greater than ${minValue}`);
+            throw new ValidationError(options?.errorMessage ?? `${name} cannot be less than ${minValue}`);
           }
           return value;
         }),
-      max: (maxValue: number) =>
+      max: (maxValue, options) =>
         next((value) => {
           if (value > maxValue) {
-            throw new ValidationError(name, `must be less than ${maxValue}`);
+            throw new ValidationError(options?.errorMessage ?? `${name} cannot be greater than ${maxValue}`);
           }
           return value;
         }),
-      integer: (
-        options?: Partial<{
-          roundIfNot: boolean;
-          divisibleBy: number;
-        }>,
-      ) => {
-        const { roundIfNot, divisibleBy } = {
+      integer: (options) => {
+        const { roundIfNot, divisibleBy, errorMessage } = {
           roundIfNot: true,
           divisibleBy: 1,
           ...options,
         };
         return next((value) => {
           if (!Number.isInteger(value) && !roundIfNot) {
-            throw new ValidationError(name, 'must be an integer');
+            throw new ValidationError(errorMessage ?? `${name} must be an integer`);
           }
           const rounded = Math.round(value);
           if (rounded % divisibleBy !== 0) {
-            throw new ValidationError(name, `must be divisible by ${divisibleBy}`);
+            throw new ValidationError(errorMessage ?? `${name} must be divisible by ${divisibleBy}`);
           }
           return rounded;
         });
@@ -84,7 +78,7 @@ export function number(
       custom: (validator) =>
         next((value) => {
           return validator(value, (message: string) => {
-            throw new ValidationError(name, message);
+            throw new ValidationError(message);
           });
         }),
       asString: () =>
